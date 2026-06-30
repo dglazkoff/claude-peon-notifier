@@ -43,7 +43,10 @@ codesign --force -s - "$APP"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 "$LSREGISTER" -f "$APP"
 
-# Refresh the notification icon cache.
+# Nudge Launch Services / Finder to pick up the new icon.
+# NOTE: do NOT `killall usernoted` here — killing the notification daemon mid-build
+# breaks delivery until usernoted AND NotificationCenter are restarted together.
+# If a changed icon looks stale in notifications, log out/in once (or restart both
+# daemons manually); the icon itself is already correct in the bundle.
 touch "$APP"
-killall usernoted 2>/dev/null || true
 echo "Done. Built $APP"
