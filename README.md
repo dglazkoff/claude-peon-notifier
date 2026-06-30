@@ -69,6 +69,18 @@ MSG_DONE="Готов вкалывать"
 MSG_WAIT="Че надо, хозяин?"
 ```
 
+## Silence specific events
+
+The `Notification` hook fires both for permission requests **and** for Claude Code's
+idle nudge ("waiting for your input"), which is redundant with the task-finished banner.
+Skip events whose hook payload matches a regex via `NOTIFY_EXCLUDE` in `config.sh`:
+```bash
+NOTIFY_EXCLUDE="idle_prompt"   # silence the idle nudge, keep permission prompts
+```
+Every hook event is logged to `~/.claude/peon/notify.log` (last 200 lines), so you can
+see the exact `notification_type` / `message` to match. Empty `NOTIFY_EXCLUDE` = notify
+on everything.
+
 ## Commands
 ```
 claude-peon install     Copy scripts, build the app, wire the hooks

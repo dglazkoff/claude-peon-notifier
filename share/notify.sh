@@ -30,6 +30,25 @@ read_cfg() {
 cfg="$(read_cfg MSG_DONE)"; [[ -n "$cfg" ]] && MSG_DONE="$cfg"
 cfg="$(read_cfg MSG_WAIT)"; [[ -n "$cfg" ]] && MSG_WAIT="$cfg"
 
+# Capture the hook payload (Claude Code passes event JSON on stdin). Guard on a
+# terminal so a manual `notify.sh done` in a shell doesn't hang waiting on cat.
+payload=""
+[[ -t 0 ]] || payload="$(cat)"
+
+# Debug log of incoming events — lets us see exactly what to exclude. Trimmed to
+# the last 200 lines so it can't grow unbounded.
+if [[ -n "$payload" ]]; then
+  printf '%s\t%s\t%s\n' "$(date '+%F %T')" "$MODE" "$(printf '%s' "$payload" | tr '\n' ' ')" >> "$DIR/notify.log"
+  tail -n 200 "$DIR/notify.log" > "$DIR/notify.log.tmp" 2>/dev/null && mv "$DIR/notify.log.tmp" "$DIR/notify.log"
+fi
+
+# Skip notifications whose payload matches NOTIFY_EXCLUDE (a regex in config.sh).
+# Empty/unset = exclude nothing. Used to silence events like the rating prompt.
+EXCLUDE_RE="$(read_cfg NOTIFY_EXCLUDE)"
+if [[ -n "$EXCLUDE_RE" && -n "$payload" ]] && printf '%s' "$payload" | grep -qiE "$EXCLUDE_RE"; then
+  exit 0
+fi
+
 case "$MODE" in
   wait) MSG="$MSG_WAIT"; SOUND_BASE="wait" ;;
   *)    MSG="$MSG_DONE"; SOUND_BASE="done" ;;
