@@ -35,13 +35,21 @@ require_macos() {
 
 # Symlink the installed CLI onto the first writable directory already on PATH.
 link_cli() {
-  local target="$DEST/claude-peon" d
+  local target="$DEST/claude-peon" d link
   for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
     case ":$PATH:" in *":$d:"*) ;; *) continue ;; esac
     [[ -d "$d" && -w "$d" ]] || continue
-    if ln -sf "$target" "$d/claude-peon" 2>/dev/null; then
-      ok "Linked claude-peon -> $d/claude-peon"
-      return 0
+    link="$d/claude-peon"
+    if [[ -e "$link" || -L "$link" ]]; then
+      # Reuse our own link, but never clobber a different existing command.
+      if [[ -L "$link" && "$(readlink "$link")" == "$target" ]]; then
+        ok "Already linked -> $link"; return 0
+      fi
+      warn "Skipping $link — a different file already lives there."
+      continue
+    fi
+    if ln -s "$target" "$link" 2>/dev/null; then
+      ok "Linked claude-peon -> $link"; return 0
     fi
   done
   warn "Couldn't link onto PATH. Run it via:  $target"
@@ -142,7 +150,8 @@ cmd_resume() {
 cmd_uninstall() {
   require_macos
   step "Removing hooks from settings.json"
-  [[ -f "$SETTINGS" ]] && osascript -l JavaScript "$DEST/merge-hooks.js" "$SETTINGS" remove >/dev/null 2>&1 || true
+  local merge="$DEST/merge-hooks.js"; [[ -f "$merge" ]] || merge="$SHARE/merge-hooks.js"
+  [[ -f "$SETTINGS" ]] && osascript -l JavaScript "$merge" "$SETTINGS" remove >/dev/null 2>&1 || true
   step "Removing PATH symlinks"
   local d target="$DEST/claude-peon"
   for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do

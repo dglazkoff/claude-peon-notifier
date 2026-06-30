@@ -21,10 +21,22 @@ function readJSON(path) {
   return JSON.parse(txt); // throws on malformed JSON — caller surfaces it
 }
 
+function isSymlink(path) {
+  var fm = $.NSFileManager.defaultManager;
+  var attrs = fm.attributesOfItemAtPathError(path, null); // does not follow the link
+  if (attrs.isNil()) return false;
+  var t = attrs.objectForKey($.NSFileType);
+  return !t.isNil() && ObjC.unwrap(t) === 'NSFileTypeSymbolicLink';
+}
+
 function writeJSON(path, obj) {
   var out = JSON.stringify(obj, null, 2) + '\n';
+  // If settings.json is a symlink (managed dotfiles — stow/chezmoi/etc), write THROUGH
+  // it (atomically=false) so we don't replace the link with a regular file and detach
+  // it from the dotfiles manager. Otherwise write atomically.
+  var atomic = !isSymlink(path);
   var wrote = $.NSString.alloc.initWithUTF8String(out)
-    .writeToFileAtomicallyEncodingError(path, true, $.NSUTF8StringEncoding, null);
+    .writeToFileAtomicallyEncodingError(path, atomic, $.NSUTF8StringEncoding, null);
   if (!wrote) throw new Error('Failed to write ' + path);
 }
 
