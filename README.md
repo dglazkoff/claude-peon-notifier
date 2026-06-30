@@ -27,8 +27,9 @@ cd claude-peon-notifier
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/dglazkoff/claude-peon-notifier/main/install.sh)
 ```
-> ⚠️ The curl form runs the current `main` branch unreviewed, and the installer edits
-> `~/.claude/settings.json`. Prefer the clone path if you want to read `install.sh` first.
+> ⚠️ `curl | bash` runs `install.sh` straight from the latest `main` without you seeing it
+> first, and it edits `~/.claude/settings.json`. If you'd rather read the script before
+> running it, use the clone path.
 
 > The installer copies the scripts **and the `claude-peon` CLI** to `~/.claude/peon`,
 > links `claude-peon` onto your PATH, builds `Peon.app`, and merges the `Stop` /
