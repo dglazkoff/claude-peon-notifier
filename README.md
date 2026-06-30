@@ -12,13 +12,7 @@ bundle whose icon is your image. That’s the *real* native way macOS shows a cu
 
 ## Install
 
-### Homebrew (tap)
-```bash
-brew install dglazkoff/tap/claude-peon-notifier
-claude-peon install
-```
-
-### Clone + one command
+### Clone + one command (recommended)
 ```bash
 git clone https://github.com/dglazkoff/claude-peon-notifier.git
 cd claude-peon-notifier
@@ -29,9 +23,12 @@ cd claude-peon-notifier
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/dglazkoff/claude-peon-notifier/main/install.sh)
 ```
+> ⚠️ The curl form runs the current `main` branch unreviewed, and the installer edits
+> `~/.claude/settings.json`. Prefer the clone path if you want to read `install.sh` first.
 
-> The installer copies scripts to `~/.claude/peon`, builds `Peon.app`, and merges the
-> `Stop` / `Notification` hooks into `~/.claude/settings.json` (idempotent — safe to re-run).
+> The installer copies the scripts **and the `claude-peon` CLI** to `~/.claude/peon`,
+> links `claude-peon` onto your PATH, builds `Peon.app`, and merges the `Stop` /
+> `Notification` hooks into `~/.claude/settings.json` (idempotent — safe to re-run).
 
 ## One manual step (macOS requirement)
 
@@ -44,10 +41,10 @@ The installer opens this pane for you. Then verify:
 claude-peon test
 ```
 
-## Add your assets
+## Assets
 
-Assets are **not** bundled (Warcraft art/audio is copyrighted). Drop your own into
-`~/.claude/peon`:
+This repo ships default peon assets in `assets/`, which the installer copies to
+`~/.claude/peon`. To use your own, drop replacements into `~/.claude/peon`:
 
 | file | purpose |
 |---|---|
@@ -55,7 +52,7 @@ Assets are **not** bundled (Warcraft art/audio is copyrighted). Drop your own in
 | `done.mp3` (or `.wav/.m4a/.aiff`) | sound when a task finishes |
 | `wait.mp3` (or `.wav/.m4a/.aiff`) | sound when waiting for permission |
 
-Then rebuild the icon:
+After changing the **image**, rebuild the icon (sound and phrases need no rebuild):
 ```bash
 claude-peon build
 ```
@@ -98,8 +95,7 @@ claude-peon uninstall   Remove hooks and ~/.claude/peon
 
 ## Uninstall
 ```bash
-claude-peon uninstall      # removes hooks + ~/.claude/peon
-brew uninstall claude-peon # if installed via brew
+claude-peon uninstall      # removes hooks, ~/.claude/peon, and the PATH symlink
 ```
 
 ## License

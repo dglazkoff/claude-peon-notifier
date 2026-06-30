@@ -13,7 +13,22 @@ MODE="${1:-done}"
 # Defaults (Warcraft III peon vibe). Override in config.sh.
 MSG_DONE="Готов вкалывать"
 MSG_WAIT="Че надо, хозяин?"
-[[ -f "$DIR/config.sh" ]] && source "$DIR/config.sh"
+
+# Read overrides from config.sh as DATA, not by sourcing it — the config file
+# must never become a code-execution point that runs on every hook fire.
+read_cfg() {
+  local key="$1" file="$DIR/config.sh" line val
+  [[ -f "$file" ]] || return 0
+  line="$(grep -E "^[[:space:]]*${key}=" "$file" 2>/dev/null | tail -1)" || return 0
+  [[ -n "$line" ]] || return 0
+  val="${line#*=}"
+  # strip one layer of surrounding single or double quotes
+  val="${val%\"}"; val="${val#\"}"
+  val="${val%\'}"; val="${val#\'}"
+  printf '%s' "$val"
+}
+cfg="$(read_cfg MSG_DONE)"; [[ -n "$cfg" ]] && MSG_DONE="$cfg"
+cfg="$(read_cfg MSG_WAIT)"; [[ -n "$cfg" ]] && MSG_WAIT="$cfg"
 
 case "$MODE" in
   wait) MSG="$MSG_WAIT"; SOUND_BASE="wait" ;;

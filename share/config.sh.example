@@ -1,5 +1,6 @@
 # Copy to ~/.claude/peon/config.sh to customize the phrases.
-# (notify.sh sources this file if present.)
+# notify.sh reads MSG_DONE / MSG_WAIT from here as plain data (it does NOT
+# execute this file), so only simple KEY="value" lines are honored.
 
 MSG_DONE="Готов вкалывать"
 MSG_WAIT="Че надо, хозяин?"

@@ -3,10 +3,23 @@
 # Commands: install | build | test | status | uninstall | help
 set -euo pipefail
 
-# Resolve our own location (handles both repo layout and Homebrew libexec).
-SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -d "$SELF/../share" ]]; then SHARE="$(cd "$SELF/../share" && pwd)"; else SHARE="$SELF/share"; fi
-ASSETS_DIR="$(cd "$SHARE/.." && pwd)/assets"
+# Resolve our own real location, following symlinks (so a PATH symlink still
+# finds the share scripts next to the real CLI).
+SRC="${BASH_SOURCE[0]}"
+while [[ -L "$SRC" ]]; do
+  d="$(cd "$(dirname "$SRC")" && pwd)"
+  SRC="$(readlink "$SRC")"
+  [[ "$SRC" != /* ]] && SRC="$d/$SRC"
+done
+SELF="$(cd "$(dirname "$SRC")" && pwd)"
+CLI_SRC="$SRC"
+
+# Locate the share dir: repo layout (bin/ + share/), or the flat installed
+# layout where the CLI lives in ~/.claude/peon alongside the scripts.
+if   [[ -d "$SELF/../share" ]]; then SHARE="$(cd "$SELF/../share" && pwd)"
+elif [[ -d "$SELF/share"    ]]; then SHARE="$SELF/share"
+else                                 SHARE="$SELF"; fi
+ASSETS_DIR="$(cd "$SHARE/.." 2>/dev/null && pwd)/assets"
 
 DEST="$HOME/.claude/peon"
 SETTINGS="$HOME/.claude/settings.json"
@@ -20,6 +33,21 @@ require_macos() {
   [[ "$(uname)" == "Darwin" ]] || { echo "claude-peon is macOS-only." >&2; exit 1; }
 }
 
+# Symlink the installed CLI onto the first writable directory already on PATH.
+link_cli() {
+  local target="$DEST/claude-peon" d
+  for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
+    case ":$PATH:" in *":$d:"*) ;; *) continue ;; esac
+    [[ -d "$d" && -w "$d" ]] || continue
+    if ln -sf "$target" "$d/claude-peon" 2>/dev/null; then
+      ok "Linked claude-peon -> $d/claude-peon"
+      return 0
+    fi
+  done
+  warn "Couldn't link onto PATH. Run it via:  $target"
+  warn "or add to PATH:  export PATH=\"\$HOME/.claude/peon:\$PATH\""
+}
+
 cmd_install() {
   require_macos
   step "Installing into $DEST"
@@ -28,8 +56,14 @@ cmd_install() {
   install -m 0644 "$SHARE/peon.applescript" "$DEST/peon.applescript"
   install -m 0755 "$SHARE/notify.sh"        "$DEST/notify.sh"
   install -m 0755 "$SHARE/build-app.sh"     "$DEST/build-app.sh"
+  install -m 0644 "$SHARE/merge-hooks.js"   "$DEST/merge-hooks.js"
   [[ -f "$DEST/config.sh" ]] || install -m 0644 "$SHARE/config.sh.example" "$DEST/config.sh"
-  ok "Copied scripts"
+
+  # Install the CLI itself so it's self-contained and linkable onto PATH.
+  if [[ "$CLI_SRC" != "$DEST/claude-peon" ]]; then
+    install -m 0755 "$CLI_SRC" "$DEST/claude-peon"
+  fi
+  ok "Copied scripts + CLI"
 
   # Bring over bundled default assets if the user hasn't supplied their own.
   if [[ -d "$ASSETS_DIR" ]]; then
@@ -49,8 +83,11 @@ cmd_install() {
 
   step "Wiring Stop / Notification hooks into $SETTINGS"
   mkdir -p "$(dirname "$SETTINGS")"
-  osascript -l JavaScript "$SHARE/merge-hooks.js" "$SETTINGS" add >/dev/null
+  osascript -l JavaScript "$DEST/merge-hooks.js" "$SETTINGS" add >/dev/null
   ok "Hooks installed"
+
+  step "Linking the claude-peon command onto your PATH"
+  link_cli
 
   echo
   ok "Done. One manual step remains:"
@@ -89,7 +126,12 @@ cmd_status() {
 cmd_uninstall() {
   require_macos
   step "Removing hooks from settings.json"
-  [[ -f "$SETTINGS" ]] && osascript -l JavaScript "$SHARE/merge-hooks.js" "$SETTINGS" remove >/dev/null || true
+  [[ -f "$SETTINGS" ]] && osascript -l JavaScript "$DEST/merge-hooks.js" "$SETTINGS" remove >/dev/null 2>&1 || true
+  step "Removing PATH symlinks"
+  local d
+  for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
+    [[ -L "$d/claude-peon" ]] && rm -f "$d/claude-peon"
+  done
   step "Removing $DEST"
   rm -rf "$DEST"
   ok "Uninstalled. (Notification permission entry for 'Peon' stays in System Settings.)"
@@ -99,11 +141,11 @@ usage() {
   cat <<EOF
 claude-peon — Warcraft peon notifications for Claude Code (macOS)
 
-  claude-peon install     Copy scripts, build the app, wire the hooks
+  claude-peon install     Copy scripts + CLI, build the app, wire the hooks, link to PATH
   claude-peon build       Rebuild Peon.app from the current image
   claude-peon test        Fire both notifications
   claude-peon status      Show what's installed
-  claude-peon uninstall   Remove hooks and ~/.claude/peon
+  claude-peon uninstall   Remove hooks, ~/.claude/peon, and the PATH symlink
   claude-peon help        This help
 
 Assets live in ~/.claude/peon: peon.{png,jpg}, done.<ext>, wait.<ext>.
