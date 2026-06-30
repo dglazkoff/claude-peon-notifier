@@ -99,4 +99,4 @@ claude-peon uninstall      # removes hooks, ~/.claude/peon, and the PATH symlink
 ```
 
 ## License
-MIT. You supply your own image/audio; respect their licenses.
+MIT.
