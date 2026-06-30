@@ -78,10 +78,10 @@ in `config.sh`:
 ```bash
 NOTIFY_EXCLUDE="idle_prompt"   # silence the idle nudge, keep permission prompts
 ```
-Only the event's identifying fields are matched (not the whole payload), so a reply that
-merely mentions the keyword won't suppress the task-finished banner. Every hook event is
-logged to `~/.claude/peon/notify.log` (last 200 lines), so you can see the exact
-`notification_type` / `message` to match. Empty `NOTIFY_EXCLUDE` = notify on everything.
+Only the event's identifying fields (`notification_type` / `message`) are matched — not the
+whole payload — so a reply that merely mentions the keyword won't suppress the task-finished
+banner. Add more types with `|`, e.g. `NOTIFY_EXCLUDE="idle_prompt|some_other_type"`. Empty
+= notify on everything.
 
 ## Commands
 ```

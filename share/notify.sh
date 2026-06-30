@@ -35,24 +35,15 @@ cfg="$(read_cfg MSG_WAIT)"; [[ -n "$cfg" ]] && MSG_WAIT="$cfg"
 payload=""
 [[ -t 0 ]] || payload="$(cat)"
 
-# Debug log of incoming events — lets us see exactly what to exclude. Trimmed to
-# the last 200 lines so it can't grow unbounded.
-if [[ -n "$payload" ]]; then
-  printf '%s\t%s\t%s\n' "$(date '+%F %T')" "$MODE" "$(printf '%s' "$payload" | tr '\n' ' ')" >> "$DIR/notify.log"
-  tail -n 200 "$DIR/notify.log" > "$DIR/notify.log.tmp" 2>/dev/null && mv "$DIR/notify.log.tmp" "$DIR/notify.log"
-fi
-
 # Skip notifications whose event matches NOTIFY_EXCLUDE (regex in config.sh).
-# Match ONLY the identifying fields (notification_type + message), never the whole
-# payload: Stop events carry the assistant's reply in last_assistant_message, so a
-# reply that merely mentions the keyword would otherwise suppress the banner.
+# Match only the identifying fields (notification_type + message), never the whole
+# payload — Stop events carry the assistant reply in last_assistant_message, so a
+# reply that merely mentions the keyword must not suppress the task-finished banner.
 EXCLUDE_RE="$(read_cfg NOTIFY_EXCLUDE)"
 if [[ -n "$EXCLUDE_RE" && -n "$payload" ]]; then
   ntype="$(printf '%s' "$payload" | sed -n 's/.*"notification_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-  nmsg="$(printf '%s' "$payload" | sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-  if printf '%s\n%s' "$ntype" "$nmsg" | grep -qiE "$EXCLUDE_RE"; then
-    exit 0
-  fi
+  nmsg="$(printf '%s' "$payload"  | sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  printf '%s\n%s' "$ntype" "$nmsg" | grep -qiE "$EXCLUDE_RE" && exit 0
 fi
 
 case "$MODE" in
