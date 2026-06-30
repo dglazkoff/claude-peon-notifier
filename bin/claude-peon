@@ -123,6 +123,22 @@ cmd_status() {
   fi
 }
 
+cmd_pause() {
+  require_macos
+  local merge="$DEST/merge-hooks.js"; [[ -f "$merge" ]] || merge="$SHARE/merge-hooks.js"
+  [[ -f "$SETTINGS" ]] && osascript -l JavaScript "$merge" "$SETTINGS" remove >/dev/null 2>&1 || true
+  ok "Paused — hooks removed from settings.json, no notifications will fire."
+  echo "   Everything stays installed. Turn it back on with:  claude-peon resume"
+}
+
+cmd_resume() {
+  require_macos
+  local merge="$DEST/merge-hooks.js"; [[ -f "$merge" ]] || merge="$SHARE/merge-hooks.js"
+  mkdir -p "$(dirname "$SETTINGS")"
+  osascript -l JavaScript "$merge" "$SETTINGS" add >/dev/null
+  ok "Resumed — hooks re-added. Notifications are back."
+}
+
 cmd_uninstall() {
   require_macos
   step "Removing hooks from settings.json"
@@ -147,6 +163,8 @@ claude-peon — Warcraft peon notifications for Claude Code (macOS)
   claude-peon build       Rebuild Peon.app from the current image
   claude-peon test        Fire both notifications
   claude-peon status      Show what's installed
+  claude-peon pause       Stop notifications (remove hooks), keep everything installed
+  claude-peon resume      Re-enable notifications after a pause
   claude-peon uninstall   Remove hooks, ~/.claude/peon, and the PATH symlink
   claude-peon help        This help
 
@@ -160,6 +178,8 @@ case "${1:-help}" in
   build)     cmd_build ;;
   test)      cmd_test ;;
   status)    cmd_status ;;
+  pause)     cmd_pause ;;
+  resume)    cmd_resume ;;
   uninstall) cmd_uninstall ;;
   ""|help|-h|--help) usage ;;
   *) echo "Unknown command: $1" >&2; usage; exit 1 ;;

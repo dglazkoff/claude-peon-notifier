@@ -89,6 +89,8 @@ claude-peon install     Copy scripts, build the app, wire the hooks
 claude-peon build       Rebuild Peon.app from the current image
 claude-peon test        Fire both notifications
 claude-peon status      Show what's installed
+claude-peon pause       Stop notifications (remove hooks), keep everything installed
+claude-peon resume      Re-enable notifications after a pause
 claude-peon uninstall   Remove hooks and ~/.claude/peon
 ```
 
@@ -113,6 +115,18 @@ claude-peon uninstall   Remove hooks and ~/.claude/peon
   is picked up. If a changed icon still looks stale in notifications, log out/in once —
   the build deliberately does **not** kill `usernoted`, since doing that mid-run breaks
   notification delivery until the daemon is restarted.
+
+## Had enough notifications?
+
+You don't have to uninstall. Pick whichever fits:
+
+- **Turn the peon off but keep it installed** — removes the hooks, leaves the app/assets:
+  ```bash
+  claude-peon pause      # re-enable later with: claude-peon resume
+  ```
+- **Just silence the banners** — leave everything wired and toggle it in macOS:
+  **System Settings → Notifications → Peon → Allow Notifications off.**
+  No need to delete the app; flip it back on anytime.
 
 ## Uninstall
 ```bash
