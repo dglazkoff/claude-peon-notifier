@@ -42,11 +42,17 @@ if [[ -n "$payload" ]]; then
   tail -n 200 "$DIR/notify.log" > "$DIR/notify.log.tmp" 2>/dev/null && mv "$DIR/notify.log.tmp" "$DIR/notify.log"
 fi
 
-# Skip notifications whose payload matches NOTIFY_EXCLUDE (a regex in config.sh).
-# Empty/unset = exclude nothing. Used to silence events like the rating prompt.
+# Skip notifications whose event matches NOTIFY_EXCLUDE (regex in config.sh).
+# Match ONLY the identifying fields (notification_type + message), never the whole
+# payload: Stop events carry the assistant's reply in last_assistant_message, so a
+# reply that merely mentions the keyword would otherwise suppress the banner.
 EXCLUDE_RE="$(read_cfg NOTIFY_EXCLUDE)"
-if [[ -n "$EXCLUDE_RE" && -n "$payload" ]] && printf '%s' "$payload" | grep -qiE "$EXCLUDE_RE"; then
-  exit 0
+if [[ -n "$EXCLUDE_RE" && -n "$payload" ]]; then
+  ntype="$(printf '%s' "$payload" | sed -n 's/.*"notification_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  nmsg="$(printf '%s' "$payload" | sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  if printf '%s\n%s' "$ntype" "$nmsg" | grep -qiE "$EXCLUDE_RE"; then
+    exit 0
+  fi
 fi
 
 case "$MODE" in

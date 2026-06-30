@@ -5,7 +5,7 @@
 MSG_DONE="Готов вкалывать"
 MSG_WAIT="Че надо, хозяин?"
 
-# Skip notifications whose hook payload matches this regex (case-insensitive).
-# "idle_prompt" silences Claude Code's "waiting for your input" idle nudge while
-# keeping permission-request notifications. Empty = notify on everything.
+# Skip notifications whose notification_type / message matches this regex
+# (case-insensitive). "idle_prompt" silences Claude Code's "waiting for your input"
+# idle nudge while keeping permission-request notifications. Empty = notify always.
 NOTIFY_EXCLUDE="idle_prompt"
