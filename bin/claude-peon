@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# claude-peon — Warcraft peon voice + icon notifications for Claude Code hooks.
+# Commands: install | build | test | status | uninstall | help
+set -euo pipefail
+
+# Resolve our own location (handles both repo layout and Homebrew libexec).
+SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -d "$SELF/../share" ]]; then SHARE="$(cd "$SELF/../share" && pwd)"; else SHARE="$SELF/share"; fi
+ASSETS_DIR="$(cd "$SHARE/.." && pwd)/assets"
+
+DEST="$HOME/.claude/peon"
+SETTINGS="$HOME/.claude/settings.json"
+
+c_green=$'\033[32m'; c_yellow=$'\033[33m'; c_dim=$'\033[2m'; c_reset=$'\033[0m'
+ok()   { echo "${c_green}✓${c_reset} $*"; }
+warn() { echo "${c_yellow}!${c_reset} $*"; }
+step() { echo "${c_dim}→ $*${c_reset}"; }
+
+require_macos() {
+  [[ "$(uname)" == "Darwin" ]] || { echo "claude-peon is macOS-only." >&2; exit 1; }
+}
+
+cmd_install() {
+  require_macos
+  step "Installing into $DEST"
+  mkdir -p "$DEST"
+
+  install -m 0644 "$SHARE/peon.applescript" "$DEST/peon.applescript"
+  install -m 0755 "$SHARE/notify.sh"        "$DEST/notify.sh"
+  install -m 0755 "$SHARE/build-app.sh"     "$DEST/build-app.sh"
+  [[ -f "$DEST/config.sh" ]] || install -m 0644 "$SHARE/config.sh.example" "$DEST/config.sh"
+  ok "Copied scripts"
+
+  # Bring over bundled default assets if the user hasn't supplied their own.
+  if [[ -d "$ASSETS_DIR" ]]; then
+    for f in peon.png peon.jpg peon.jpeg done.mp3 done.wav wait.mp3 wait.wav; do
+      [[ -f "$ASSETS_DIR/$f" && ! -e "$DEST/$f" ]] && cp "$ASSETS_DIR/$f" "$DEST/$f"
+    done
+  fi
+
+  local img
+  img="$(/bin/ls "$DEST"/peon.png "$DEST"/peon.jpg "$DEST"/peon.jpeg 2>/dev/null | /usr/bin/head -1 || true)"
+  if [[ -n "$img" ]]; then
+    step "Building Peon.app with your icon"
+    bash "$DEST/build-app.sh"
+  else
+    warn "No image yet — drop peon.png (or .jpg) into $DEST, then run: claude-peon build"
+  fi
+
+  step "Wiring Stop / Notification hooks into $SETTINGS"
+  mkdir -p "$(dirname "$SETTINGS")"
+  osascript -l JavaScript "$SHARE/merge-hooks.js" "$SETTINGS" add >/dev/null
+  ok "Hooks installed"
+
+  echo
+  ok "Done. One manual step remains:"
+  echo "   Enable banners for \"Peon\": System Settings → Notifications → Peon"
+  echo "   → Allow Notifications, style Banners or Alerts."
+  step "Opening Notification settings…"
+  open "x-apple.systempreferences:com.apple.Notifications-Settings.extension" 2>/dev/null \
+    || open "x-apple.systempreferences:com.apple.preference.notifications" 2>/dev/null || true
+  echo
+  echo "Then verify with:  claude-peon test"
+}
+
+cmd_build()  { require_macos; bash "$DEST/build-app.sh"; }
+
+cmd_test() {
+  require_macos
+  [[ -x "$DEST/notify.sh" ]] || { echo "Not installed. Run: claude-peon install" >&2; exit 1; }
+  step "Firing 'done'…"; bash "$DEST/notify.sh" done; sleep 3
+  step "Firing 'wait'…"; bash "$DEST/notify.sh" wait
+  ok "If you saw two banners (and heard sound where present), you're set."
+}
+
+cmd_status() {
+  echo "share dir : $SHARE"
+  echo "dest dir  : $DEST"
+  [[ -d "$DEST/Peon.app" ]] && ok "Peon.app built" || warn "Peon.app missing (run: claude-peon build)"
+  /bin/ls "$DEST"/done.* >/dev/null 2>&1 && ok "done sound present" || warn "no done.* sound"
+  /bin/ls "$DEST"/wait.* >/dev/null 2>&1 && ok "wait sound present" || warn "no wait.* sound"
+  if [[ -f "$SETTINGS" ]] && grep -q "peon/notify.sh" "$SETTINGS" 2>/dev/null; then
+    ok "hooks present in settings.json"
+  else
+    warn "hooks not found in settings.json (run: claude-peon install)"
+  fi
+}
+
+cmd_uninstall() {
+  require_macos
+  step "Removing hooks from settings.json"
+  [[ -f "$SETTINGS" ]] && osascript -l JavaScript "$SHARE/merge-hooks.js" "$SETTINGS" remove >/dev/null || true
+  step "Removing $DEST"
+  rm -rf "$DEST"
+  ok "Uninstalled. (Notification permission entry for 'Peon' stays in System Settings.)"
+}
+
+usage() {
+  cat <<EOF
+claude-peon — Warcraft peon notifications for Claude Code (macOS)
+
+  claude-peon install     Copy scripts, build the app, wire the hooks
+  claude-peon build       Rebuild Peon.app from the current image
+  claude-peon test        Fire both notifications
+  claude-peon status      Show what's installed
+  claude-peon uninstall   Remove hooks and ~/.claude/peon
+  claude-peon help        This help
+
+Assets live in ~/.claude/peon: peon.{png,jpg}, done.<ext>, wait.<ext>.
+Phrases: edit ~/.claude/peon/config.sh.
+EOF
+}
+
+case "${1:-help}" in
+  install)   cmd_install ;;
+  build)     cmd_build ;;
+  test)      cmd_test ;;
+  status)    cmd_status ;;
+  uninstall) cmd_uninstall ;;
+  ""|help|-h|--help) usage ;;
+  *) echo "Unknown command: $1" >&2; usage; exit 1 ;;
+esac

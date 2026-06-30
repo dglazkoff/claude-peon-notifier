@@ -1,0 +1,5 @@
+# Copy to ~/.claude/peon/config.sh to customize the phrases.
+# (notify.sh sources this file if present.)
+
+MSG_DONE="Готов вкалывать"
+MSG_WAIT="Че надо, хозяин?"
