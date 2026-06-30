@@ -34,7 +34,9 @@ if [[ -d "$DIR/Peon.app" ]]; then
   /usr/bin/open "$DIR/Peon.app"
 else
   # Fallback before the app is built: native notification, terminal icon.
-  /usr/bin/osascript -e "display notification with title \"$MSG\"" >/dev/null 2>&1
+  # Pass the text as an argv item (not string interpolation) so quotes/specials
+  # in the phrase can't break the script or inject AppleScript.
+  /usr/bin/osascript -e 'on run argv' -e 'display notification with title (item 1 of argv)' -e 'end run' "$MSG" >/dev/null 2>&1
 fi
 
 exit 0

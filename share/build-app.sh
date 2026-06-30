@@ -38,7 +38,8 @@ echo "Setting bundle identifier -> $BUNDLE_ID"
   || /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$APP/Contents/Info.plist"
 
 echo "Re-signing (ad-hoc) and registering with Launch Services"
-codesign --force --deep -s - "$APP"
+# No --deep: the applet has no nested code to sign, and --deep is deprecated.
+codesign --force -s - "$APP"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 "$LSREGISTER" -f "$APP"
 

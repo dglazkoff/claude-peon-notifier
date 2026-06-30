@@ -8,18 +8,24 @@ ObjC.import('Foundation');
 
 function readJSON(path) {
   var fm = $.NSFileManager.defaultManager;
-  if (!fm.fileExistsAtPath(path)) return {};
+  if (!fm.fileExistsAtPath(path)) return {}; // genuinely no file -> start fresh
+  // The file exists: a read failure (not UTF-8, permissions) must NOT be treated
+  // as "empty", or we'd clobber the user's real settings on write.
   var txt = ObjC.unwrap(
     $.NSString.stringWithContentsOfFileEncodingError(path, $.NSUTF8StringEncoding, null)
-  ) || '';
+  );
+  if (typeof txt !== 'string') {
+    throw new Error('Cannot read ' + path + ' as UTF-8; refusing to overwrite it.');
+  }
   if (!txt.trim().length) return {};
   return JSON.parse(txt); // throws on malformed JSON — caller surfaces it
 }
 
 function writeJSON(path, obj) {
   var out = JSON.stringify(obj, null, 2) + '\n';
-  $.NSString.alloc.initWithUTF8String(out)
+  var wrote = $.NSString.alloc.initWithUTF8String(out)
     .writeToFileAtomicallyEncodingError(path, true, $.NSUTF8StringEncoding, null);
+  if (!wrote) throw new Error('Failed to write ' + path);
 }
 
 function run(argv) {
