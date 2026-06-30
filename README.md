@@ -91,7 +91,10 @@ claude-peon uninstall   Remove hooks and ~/.claude/peon
   you enable it (the one manual step above).
 - **`iconutil` is flaky.** It fails with *“Failed to generate ICNS”* on some JPEGs, so the icon
   is built via `sips` direct conversion instead.
-- **Icon caching.** The build flushes `usernoted` so a new image shows immediately.
+- **Icon caching.** The build re-registers the app with Launch Services so the new icon
+  is picked up. If a changed icon still looks stale in notifications, log out/in once —
+  the build deliberately does **not** kill `usernoted`, since doing that mid-run breaks
+  notification delivery until the daemon is restarted.
 
 ## Uninstall
 ```bash

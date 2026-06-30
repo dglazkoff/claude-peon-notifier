@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-command installer. Works from a clone (./install.sh) or via:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/USER/claude-peon/main/install.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/dglazkoff/claude-peon-notifier/main/install.sh)
 #
 # When piped from curl there is no local checkout, so we clone the repo first.
 set -euo pipefail
