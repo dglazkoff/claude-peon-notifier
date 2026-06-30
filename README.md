@@ -6,6 +6,10 @@ with a **custom icon** and a **voice line** — Warcraft III peon style.
 - **Task finished** (`Stop` hook) → banner **“Готов вкалывать”** + `done` sound
 - **Waiting for permission / input** (`Notification` hook) → banner **“Че надо, хозяин?”** + `wait` sound
 
+<p align="center">
+  <img src="docs/demo.gif" alt="claude-peon notification demo" width="700">
+</p>
+
 Built with **only the tools that ship with macOS** — no `terminal-notifier`, no Python, no jq.
 The notification icon is the peon because the notification is posted by a tiny `.app`
 bundle whose icon is your image. That’s the *real* native way macOS shows a custom icon.
