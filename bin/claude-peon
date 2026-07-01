@@ -4,9 +4,12 @@
 set -euo pipefail
 
 # Resolve our own real location, following symlinks (so a PATH symlink still
-# finds the share scripts next to the real CLI).
-SRC="${BASH_SOURCE[0]}"
+# finds the share scripts next to the real CLI). The counter guards against a
+# symlink loop turning this into an infinite loop.
+SRC="${BASH_SOURCE[0]:-$0}"
+_hops=0
 while [[ -L "$SRC" ]]; do
+  _hops=$((_hops + 1)); [[ $_hops -gt 40 ]] && break
   d="$(cd "$(dirname "$SRC")" && pwd)"
   SRC="$(readlink "$SRC")"
   [[ "$SRC" != /* ]] && SRC="$d/$SRC"
@@ -19,7 +22,13 @@ CLI_SRC="$SRC"
 if   [[ -d "$SELF/../share" ]]; then SHARE="$(cd "$SELF/../share" && pwd)"
 elif [[ -d "$SELF/share"    ]]; then SHARE="$SELF/share"
 else                                 SHARE="$SELF"; fi
-ASSETS_DIR="$(cd "$SHARE/.." 2>/dev/null && pwd)/assets"
+# Bundled assets only exist in the repo layout (…/share/../assets). In the flat
+# installed layout this would resolve to ~/.claude/assets, so don't look there.
+if [[ "$(basename "$SHARE")" == "share" ]]; then
+  ASSETS_DIR="$(cd "$SHARE/.." 2>/dev/null && pwd)/assets"
+else
+  ASSETS_DIR=""
+fi
 
 DEST="$HOME/.claude/peon"
 SETTINGS="$HOME/.claude/settings.json"
@@ -134,7 +143,14 @@ cmd_status() {
 cmd_pause() {
   require_macos
   local merge="$DEST/merge-hooks.js"; [[ -f "$merge" ]] || merge="$SHARE/merge-hooks.js"
-  [[ -f "$SETTINGS" ]] && osascript -l JavaScript "$merge" "$SETTINGS" remove >/dev/null 2>&1 || true
+  if [[ -f "$SETTINGS" ]]; then
+    local err
+    if ! err="$(osascript -l JavaScript "$merge" "$SETTINGS" remove 2>&1)"; then
+      echo "ERROR: couldn't update $SETTINGS — hooks NOT removed:" >&2
+      echo "  $err" >&2
+      exit 1
+    fi
+  fi
   ok "Paused — hooks removed from settings.json, no notifications will fire."
   echo "   Everything stays installed. Turn it back on with:  claude-peon resume"
 }
@@ -151,7 +167,18 @@ cmd_uninstall() {
   require_macos
   step "Removing hooks from settings.json"
   local merge="$DEST/merge-hooks.js"; [[ -f "$merge" ]] || merge="$SHARE/merge-hooks.js"
-  [[ -f "$SETTINGS" ]] && osascript -l JavaScript "$merge" "$SETTINGS" remove >/dev/null 2>&1 || true
+  # Abort BEFORE deleting scripts if hooks can't be removed — otherwise the hooks
+  # would linger in settings.json pointing at files we just rm -rf'd, and every
+  # Stop/Notification in Claude Code would error.
+  if [[ -f "$SETTINGS" ]]; then
+    local err
+    if ! err="$(osascript -l JavaScript "$merge" "$SETTINGS" remove 2>&1)"; then
+      echo "ERROR: couldn't remove hooks from $SETTINGS:" >&2
+      echo "  $err" >&2
+      echo "Fix that first (or edit the file by hand); aborting to avoid dangling hooks." >&2
+      exit 1
+    fi
+  fi
   step "Removing PATH symlinks"
   local d target="$DEST/claude-peon"
   for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do

@@ -22,9 +22,13 @@ read_cfg() {
   line="$(grep -E "^[[:space:]]*${key}=" "$file" 2>/dev/null | tail -1)" || return 0
   [[ -n "$line" ]] || return 0
   val="${line#*=}"
-  # strip one layer of surrounding single or double quotes
-  val="${val%\"}"; val="${val#\"}"
-  val="${val%\'}"; val="${val#\'}"
+  val="${val#"${val%%[![:space:]]*}"}"           # strip leading whitespace
+  case "$val" in
+    '"'*) val="${val#\"}"; val="${val%%\"*}" ;;   # "quoted" -> content of first pair
+    "'"*) val="${val#\'}"; val="${val%%\'*}" ;;   # 'quoted'
+    *)    val="${val%%#*}"                          # unquoted: drop inline comment
+          val="${val%"${val##*[![:space:]]}"}" ;;  # and trailing whitespace
+  esac
   printf '%s' "$val"
 }
 cfg="$(read_cfg MSG_DONE)"; [[ -n "$cfg" ]] && MSG_DONE="$cfg"
@@ -43,7 +47,7 @@ EXCLUDE_RE="$(read_cfg NOTIFY_EXCLUDE)"
 if [[ -n "$EXCLUDE_RE" && -n "$payload" ]]; then
   ntype="$(printf '%s' "$payload" | sed -n 's/.*"notification_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
   nmsg="$(printf '%s' "$payload"  | sed -n 's/.*"message"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-  printf '%s\n%s' "$ntype" "$nmsg" | grep -qiE "$EXCLUDE_RE" && exit 0
+  printf '%s\n%s' "$ntype" "$nmsg" | grep -qiE -- "$EXCLUDE_RE" && exit 0
 fi
 
 case "$MODE" in

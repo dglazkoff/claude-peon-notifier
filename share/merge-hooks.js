@@ -18,7 +18,13 @@ function readJSON(path) {
     throw new Error('Cannot read ' + path + ' as UTF-8; refusing to overwrite it.');
   }
   if (!txt.trim().length) return {};
-  return JSON.parse(txt); // throws on malformed JSON — caller surfaces it
+  var parsed = JSON.parse(txt); // throws on malformed JSON — caller surfaces it
+  // Root must be a plain object; on an array/scalar our added `hooks` property would
+  // be silently dropped by JSON.stringify and the install would "succeed" but do nothing.
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(path + ' is not a JSON object; refusing to modify it.');
+  }
+  return parsed;
 }
 
 function isSymlink(path) {
@@ -52,10 +58,14 @@ function run(argv) {
     var cmd = 'bash ~/.claude/peon/notify.sh ' + EVENTS[ev];
     var groups = Array.isArray(settings.hooks[ev]) ? settings.hooks[ev] : [];
 
-    // Drop any existing claude-peon entries for this event (clean re-add / remove).
-    groups = groups.filter(function (g) {
-      var hooks = (g && g.hooks) || [];
-      return !hooks.some(function (h) { return h.command === cmd; });
+    // Remove ONLY our hook from each group, element-wise — a group may also hold the
+    // user's own hooks, which must survive. Then drop groups we emptied completely.
+    groups = groups.map(function (g) {
+      if (!g || !Array.isArray(g.hooks)) return g;
+      var kept = g.hooks.filter(function (h) { return h.command !== cmd; });
+      return Object.assign({}, g, { hooks: kept });
+    }).filter(function (g) {
+      return !g || !Array.isArray(g.hooks) || g.hooks.length > 0;
     });
 
     if (mode === 'add') {

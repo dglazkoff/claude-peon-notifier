@@ -7,8 +7,16 @@ set -euo pipefail
 
 REPO_URL="https://github.com/dglazkoff/claude-peon-notifier.git"
 
-if [[ -f "$(dirname "${BASH_SOURCE[0]}")/bin/claude-peon" ]]; then
-  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ${BASH_SOURCE[0]:-} — under `curl | bash` (no process substitution) BASH_SOURCE
+# is unset, and set -u would otherwise abort here.
+SELF="${BASH_SOURCE[0]:-}"
+
+TMP=""
+cleanup() { [[ -n "$TMP" ]] && rm -rf "$TMP"; }
+trap cleanup EXIT
+
+if [[ -n "$SELF" && -f "$(dirname "$SELF")/bin/claude-peon" ]]; then
+  ROOT="$(cd "$(dirname "$SELF")" && pwd)"
 else
   echo "→ Cloning claude-peon…"
   TMP="$(mktemp -d)"
@@ -17,4 +25,5 @@ else
 fi
 
 chmod +x "$ROOT/bin/claude-peon" "$ROOT/share/"*.sh 2>/dev/null || true
-exec "$ROOT/bin/claude-peon" install
+# Not `exec`: we must return here so the EXIT trap can clean up the temp clone.
+"$ROOT/bin/claude-peon" install
