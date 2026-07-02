@@ -1,11 +1,17 @@
-# Copy to ~/.claude/peon/config.sh to customize the phrases.
-# notify.sh reads MSG_DONE / MSG_WAIT from here as plain data (it does NOT
-# execute this file), so only simple KEY="value" lines are honored.
-
-MSG_DONE="Готов вкалывать"
-MSG_WAIT="Че надо, хозяин?"
+# Copy to ~/.claude/peon/config.sh to customize behavior.
+# notify.sh reads these as plain DATA (it does NOT execute this file), so only
+# simple KEY="value" lines are honored.
 
 # Skip notifications whose notification_type / message matches this regex
 # (case-insensitive). "idle_prompt" silences Claude Code's "waiting for your input"
 # idle nudge while keeping permission-request notifications. Empty = notify always.
 NOTIFY_EXCLUDE="idle_prompt"
+
+# Phrases come from the active language pack (~/.claude/peon/phrases.sh, chosen via
+# `claude-peon lang <code>`). To override the text without changing the pack, set any
+# of these here — they win over the pack. "wait" picks one of MSG_WAIT_1..4 at random.
+# MSG_DONE="Ready to work!"
+# MSG_WAIT_1="Yes?"
+# MSG_WAIT_2="Hmm?"
+# MSG_WAIT_3="What you want?"
+# MSG_WAIT_4="Something need doing?"

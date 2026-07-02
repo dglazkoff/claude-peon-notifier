@@ -1,10 +1,11 @@
 # claude-peon 🪓
 
 Native macOS notifications for [Claude Code](https://www.anthropic.com/claude-code) hooks,
-with a **custom icon** and a **voice line** — Warcraft III peon style.
+with a **custom icon** and a **voice line** — Warcraft III peon style, in several languages.
 
-- **Task finished** (`Stop` hook) → banner **“Готов вкалывать”** + `done` sound
-- **Waiting for permission / input** (`Notification` hook) → banner **“Че надо, хозяин?”** + `wait` sound
+- **Task finished** (`Stop` hook) → banner **“Ready to work!”** + the peon's ready voice
+- **Waiting for permission / input** (`Notification` hook) → banner + voice, picked at random
+  from four lines (**“Yes?” / “Hmm?” / “What you want?” / “Something need doing?”**)
 
 <p align="center">
   <img src="docs/demo.gif" alt="claude-peon notification demo" width="700">
@@ -20,7 +21,8 @@ bundle whose icon is your image. That’s the *real* native way macOS shows a cu
 ```bash
 git clone https://github.com/dglazkoff/claude-peon-notifier.git
 cd claude-peon-notifier
-./install.sh
+./install.sh                 # English by default
+# ./install.sh --lang ru     # or pick a language: en ru de es fr
 ```
 
 ### curl one-liner
@@ -46,28 +48,31 @@ The installer opens this pane for you. Then verify:
 claude-peon test
 ```
 
-## Assets
+## Languages
 
-This repo ships default peon assets in `assets/`, which the installer copies to
-`~/.claude/peon`. To use your own, drop replacements into `~/.claude/peon`:
-
-| file | purpose |
-|---|---|
-| `peon.png` or `peon.jpg` | notification icon |
-| `done.mp3` (or `.wav/.m4a/.aiff`) | sound when a task finishes |
-| `wait.mp3` (or `.wav/.m4a/.aiff`) | sound when waiting for permission |
-
-After changing the **image**, rebuild the icon (sound and phrases need no rebuild):
+Voice packs ship for **en · ru · de · es · fr** (English is the default). Each pack
+provides the "ready" line plus four random "waiting" lines, and the banner text always
+matches the voice. Switch anytime:
 ```bash
-claude-peon build
+claude-peon lang          # show current + available
+claude-peon lang ru       # switch voice + phrases
 ```
 
-## Customize the phrases
-
-Edit `~/.claude/peon/config.sh`:
+To override the wording without changing the pack, set any of these in
+`~/.claude/peon/config.sh` (they win over the pack):
 ```bash
-MSG_DONE="Готов вкалывать"
-MSG_WAIT="Че надо, хозяин?"
+MSG_DONE="Ready to work!"
+MSG_WAIT_1="Yes?"
+MSG_WAIT_2="Hmm?"
+MSG_WAIT_3="What you want?"
+MSG_WAIT_4="Something need doing?"
+```
+
+## Change the icon
+
+The notification icon is `~/.claude/peon/peon.jpg` (or `.png`). Replace it and rebuild:
+```bash
+claude-peon build         # sound/phrases need no rebuild, only the icon does
 ```
 
 ## Silence specific events
@@ -86,13 +91,14 @@ banner. Add more types with `|`, e.g. `NOTIFY_EXCLUDE="idle_prompt|some_other_ty
 
 ## Commands
 ```
-claude-peon install     Copy scripts, build the app, wire the hooks
-claude-peon build       Rebuild Peon.app from the current image
-claude-peon test        Fire both notifications
-claude-peon status      Show what's installed
-claude-peon pause       Stop notifications (remove hooks), keep everything installed
-claude-peon resume      Re-enable notifications after a pause
-claude-peon uninstall   Remove hooks and ~/.claude/peon
+claude-peon install [--lang <code>]   Install (default en), build app, wire hooks, link to PATH
+claude-peon lang [<code>]             Show / switch voice language (en ru de es fr)
+claude-peon build                     Rebuild Peon.app from the current image
+claude-peon test                      Fire both notifications
+claude-peon status                    Show what's installed
+claude-peon pause                     Stop notifications (remove hooks), keep everything installed
+claude-peon resume                    Re-enable notifications after a pause
+claude-peon uninstall                 Remove hooks and ~/.claude/peon
 ```
 
 ## How it works
@@ -134,5 +140,11 @@ You don't have to uninstall. Pick whichever fits:
 claude-peon uninstall      # removes hooks, ~/.claude/peon, and the PATH symlink
 ```
 
-## License
-MIT.
+## Credits & License
+
+Code: MIT.
+
+Voice packs come from [PeonPing / og-packs](https://github.com/PeonPing/og-packs) (CESP
+sound packs) and are licensed **CC-BY-NC-4.0** (non-commercial, attribution required). See
+each pack's upstream `openpeon.json` for author/metadata. If you redistribute this project
+commercially, swap in your own audio.

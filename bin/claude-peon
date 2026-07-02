@@ -65,8 +65,39 @@ link_cli() {
   warn "or add to PATH:  export PATH=\"\$HOME/.claude/peon:\$PATH\""
 }
 
+SUPPORTED_LANGS="en ru de es fr"
+
+lang_supported() {
+  local l="$1" x
+  for x in $SUPPORTED_LANGS; do [[ "$x" == "$l" ]] && return 0; done
+  return 1
+}
+
+# Copy a language pack's sounds + phrases into the active slots.
+activate_lang() {
+  local lang="$1" src="$DEST/lang/$lang"
+  [[ -d "$src" ]] || { echo "Language pack '$lang' not found in $DEST/lang." >&2; return 1; }
+  mkdir -p "$DEST/sounds"
+  rm -f "$DEST"/sounds/done.* "$DEST"/sounds/wait*.* 2>/dev/null || true
+  cp "$src"/*.wav "$DEST/sounds/"
+  cp "$src/phrases.sh" "$DEST/phrases.sh"
+  printf '%s' "$lang" > "$DEST/lang.current"
+}
+
 cmd_install() {
   require_macos
+  local lang="en"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --lang)   lang="${2:-}"; shift 2 ;;
+      --lang=*) lang="${1#*=}"; shift ;;
+      *) echo "Unknown option: $1 (try: claude-peon install --lang <code>)" >&2; exit 1 ;;
+    esac
+  done
+  if ! lang_supported "$lang"; then
+    echo "Unsupported language '$lang'. Available: $SUPPORTED_LANGS" >&2; exit 1
+  fi
+
   step "Installing into $DEST"
   mkdir -p "$DEST"
 
@@ -82,17 +113,27 @@ cmd_install() {
   fi
   ok "Copied scripts + CLI"
 
-  # Bring over bundled default assets if the user hasn't supplied their own.
-  if [[ -d "$ASSETS_DIR" ]]; then
-    for f in peon.png peon.jpg peon.jpeg done.mp3 done.wav wait.mp3 wait.wav; do
+  # Bundle every language pack + the icon (repo layout only), so switching later
+  # with `claude-peon lang <code>` works without the repo checkout.
+  if [[ -n "$ASSETS_DIR" && -d "$ASSETS_DIR" ]]; then
+    [[ -d "$ASSETS_DIR/lang" ]] && { mkdir -p "$DEST/lang"; cp -R "$ASSETS_DIR/lang/." "$DEST/lang/"; }
+    for f in peon.png peon.jpg peon.jpeg; do
       [[ -f "$ASSETS_DIR/$f" && ! -e "$DEST/$f" ]] && cp "$ASSETS_DIR/$f" "$DEST/$f"
     done
+  fi
+
+  if [[ -d "$DEST/lang/$lang" ]]; then
+    step "Activating voice pack: $lang"
+    activate_lang "$lang"
+    ok "Language: $lang"
+  else
+    warn "No bundled sounds for '$lang' — notifications will be silent until added."
   fi
 
   local img
   img="$(/bin/ls "$DEST"/peon.png "$DEST"/peon.jpg "$DEST"/peon.jpeg 2>/dev/null | /usr/bin/head -1 || true)"
   if [[ -n "$img" ]]; then
-    step "Building Peon.app with your icon"
+    step "Building Peon.app with the icon"
     bash "$DEST/build-app.sh"
   else
     warn "No image yet — drop peon.png (or .jpg) into $DEST, then run: claude-peon build"
@@ -117,6 +158,24 @@ cmd_install() {
   echo "Then verify with:  claude-peon test"
 }
 
+cmd_lang() {
+  require_macos
+  local lang="${1:-}"
+  local avail; avail="$([[ -d "$DEST/lang" ]] && (cd "$DEST/lang" && echo *) || echo "$SUPPORTED_LANGS")"
+  if [[ -z "$lang" ]]; then
+    local cur="(unknown)"; [[ -f "$DEST/lang.current" ]] && cur="$(cat "$DEST/lang.current")"
+    echo "Current language : $cur"
+    echo "Available        : $avail"
+    echo "Switch with      : claude-peon lang <code>"
+    return 0
+  fi
+  if [[ ! -d "$DEST/lang/$lang" ]]; then
+    echo "Language '$lang' not installed. Available: $avail" >&2; exit 1
+  fi
+  activate_lang "$lang"
+  ok "Switched to '$lang' — new phrases and voice are live."
+}
+
 cmd_build()  { require_macos; bash "$DEST/build-app.sh"; }
 
 cmd_test() {
@@ -130,9 +189,11 @@ cmd_test() {
 cmd_status() {
   echo "share dir : $SHARE"
   echo "dest dir  : $DEST"
+  local cur="(unknown)"; [[ -f "$DEST/lang.current" ]] && cur="$(cat "$DEST/lang.current")"
+  echo "language  : $cur"
   [[ -d "$DEST/Peon.app" ]] && ok "Peon.app built" || warn "Peon.app missing (run: claude-peon build)"
-  /bin/ls "$DEST"/done.* >/dev/null 2>&1 && ok "done sound present" || warn "no done.* sound"
-  /bin/ls "$DEST"/wait.* >/dev/null 2>&1 && ok "wait sound present" || warn "no wait.* sound"
+  /bin/ls "$DEST"/sounds/done.*  >/dev/null 2>&1 && ok "done sound present" || warn "no done sound"
+  /bin/ls "$DEST"/sounds/wait1.* >/dev/null 2>&1 && ok "wait sounds present" || warn "no wait sounds"
   if [[ -f "$SETTINGS" ]] && grep -q "peon/notify.sh" "$SETTINGS" 2>/dev/null; then
     ok "hooks present in settings.json"
   else
@@ -195,22 +256,24 @@ usage() {
   cat <<EOF
 claude-peon — Warcraft peon notifications for Claude Code (macOS)
 
-  claude-peon install     Copy scripts + CLI, build the app, wire the hooks, link to PATH
-  claude-peon build       Rebuild Peon.app from the current image
-  claude-peon test        Fire both notifications
-  claude-peon status      Show what's installed
-  claude-peon pause       Stop notifications (remove hooks), keep everything installed
-  claude-peon resume      Re-enable notifications after a pause
-  claude-peon uninstall   Remove hooks, ~/.claude/peon, and the PATH symlink
-  claude-peon help        This help
+  claude-peon install [--lang <code>]   Install (default: en), build app, wire hooks, link to PATH
+  claude-peon lang [<code>]             Show / switch voice language ($SUPPORTED_LANGS)
+  claude-peon build                     Rebuild Peon.app from the current image
+  claude-peon test                      Fire both notifications
+  claude-peon status                    Show what's installed
+  claude-peon pause                     Stop notifications (remove hooks), keep everything installed
+  claude-peon resume                    Re-enable notifications after a pause
+  claude-peon uninstall                 Remove hooks, ~/.claude/peon, and the PATH symlink
+  claude-peon help                      This help
 
-Assets live in ~/.claude/peon: peon.{png,jpg}, done.<ext>, wait.<ext>.
-Phrases: edit ~/.claude/peon/config.sh.
+Languages: $SUPPORTED_LANGS. Phrase/behavior overrides: ~/.claude/peon/config.sh.
 EOF
 }
 
-case "${1:-help}" in
-  install)   cmd_install ;;
+cmd="${1:-help}"; [[ $# -gt 0 ]] && shift
+case "$cmd" in
+  install)   cmd_install "$@" ;;
+  lang)      cmd_lang "$@" ;;
   build)     cmd_build ;;
   test)      cmd_test ;;
   status)    cmd_status ;;
@@ -218,5 +281,5 @@ case "${1:-help}" in
   resume)    cmd_resume ;;
   uninstall) cmd_uninstall ;;
   ""|help|-h|--help) usage ;;
-  *) echo "Unknown command: $1" >&2; usage; exit 1 ;;
+  *) echo "Unknown command: $cmd" >&2; usage; exit 1 ;;
 esac
