@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds ~/.claude/peon/Peon.app from peon.applescript + an image.
-# Uses only built-in macOS tools: osacompile, sips, codesign, lsregister.
+# Uses only built-in macOS tools: osacompile, sips, iconutil, codesign, lsregister.
 # Re-run whenever you change the image. Bundle id / signing / Launch Services
 # registration are baked in so notifications keep working after a rebuild.
 set -euo pipefail
@@ -23,12 +23,20 @@ echo "Compiling applet -> $APP"
 rm -rf "$APP"
 osacompile -o "$APP" "$SRC"
 
-echo "Building icon (normalize -> sRGB 512 square -> icns)"
-# sips direct conversion is more reliable than iconutil, which often fails
-# with "Failed to generate ICNS" on certain JPEGs.
-sips -z 512 512 "$IMG" --out "$DIR/_icon512.png" >/dev/null
-sips -s format icns "$DIR/_icon512.png" --out "$DIR/peon.icns" >/dev/null
-rm -f "$DIR/_icon512.png"
+echo "Building icon (PNG iconset 16..1024 -> icns)"
+# Full multi-size iconset, not a single 512 rep: macOS 26 (Tahoe) won't downscale
+# a one-rep icns for small surfaces — Notification Settings shows a blank icon.
+# `-s format png` in the SAME sips call matters: `-z` alone keeps the source
+# format, leaving JPEG data in *.png files — that is what used to make iconutil
+# fail with "Failed to generate ICNS" on JPEG inputs.
+ICONSET="$DIR/_icon.iconset"
+rm -rf "$ICONSET"; mkdir "$ICONSET"
+for s in 16 32 128 256 512; do
+  sips -z "$s" "$s"             -s format png "$IMG" --out "$ICONSET/icon_${s}x${s}.png"    >/dev/null
+  sips -z "$((s*2))" "$((s*2))" -s format png "$IMG" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$DIR/peon.icns"
+rm -rf "$ICONSET"
 cp "$DIR/peon.icns" "$APP/Contents/Resources/applet.icns"
 
 echo "Setting bundle identifier -> $BUNDLE_ID"
