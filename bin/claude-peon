@@ -73,15 +73,43 @@ lang_supported() {
   return 1
 }
 
-# Copy a language pack's sounds + phrases into the active slots.
+# A pack name must be a simple identifier — no path traversal.
+valid_lang_name() { [[ "$1" =~ ^[A-Za-z][A-Za-z0-9_-]*$ ]]; }
+
+# Copy a language pack's sounds + phrases into the active slots. Gathers the new
+# audio FIRST (any extension) and only deletes the current sounds once we know the
+# pack actually has some — so a broken pack can't leave you with no sound at all.
 activate_lang() {
-  local lang="$1" src="$DEST/lang/$lang"
+  local lang="$1" src="$DEST/lang/$lang" f
+  valid_lang_name "$lang" || { echo "Invalid language name '$lang'." >&2; return 1; }
   [[ -d "$src" ]] || { echo "Language pack '$lang' not found in $DEST/lang." >&2; return 1; }
+
+  local audio=()
+  shopt -s nullglob
+  for f in "$src"/done.* "$src"/wait1.* "$src"/wait2.* "$src"/wait3.* "$src"/wait4.*; do
+    case "$f" in *.wav|*.mp3|*.m4a|*.aiff|*.aif) audio+=("$f") ;; esac
+  done
+  shopt -u nullglob
+  if [[ ${#audio[@]} -eq 0 ]]; then
+    echo "Language pack '$lang' has no audio files; keeping current sounds." >&2
+    return 1
+  fi
+
   mkdir -p "$DEST/sounds"
   rm -f "$DEST"/sounds/done.* "$DEST"/sounds/wait*.* 2>/dev/null || true
-  cp "$src"/*.wav "$DEST/sounds/"
-  cp "$src/phrases.sh" "$DEST/phrases.sh"
+  cp "${audio[@]}" "$DEST/sounds/"
+  [[ -f "$src/phrases.sh" ]] && cp "$src/phrases.sh" "$DEST/phrases.sh"
   printf '%s' "$lang" > "$DEST/lang.current"
+}
+
+# Warn about pre-multilang layout so an upgrade doesn't silently drop customizations.
+warn_legacy() {
+  if [[ -f "$DEST/config.sh" ]] && grep -qE '^[[:space:]]*MSG_WAIT=' "$DEST/config.sh"; then
+    warn "config.sh has an old MSG_WAIT= — it's ignored now; wait lines are MSG_WAIT_1..4."
+  fi
+  if /bin/ls "$DEST"/done.* "$DEST"/wait.* >/dev/null 2>&1; then
+    warn "Old sounds in $DEST/(done|wait).* are unused now — sounds live in $DEST/sounds/. Remove them if you like."
+  fi
 }
 
 cmd_install() {
@@ -89,7 +117,7 @@ cmd_install() {
   local lang="en"
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --lang)   lang="${2:-}"; shift 2 ;;
+      --lang)   lang="${2:-}"; [[ -n "$lang" ]] || { echo "--lang requires a value ($SUPPORTED_LANGS)" >&2; exit 1; }; shift 2 ;;
       --lang=*) lang="${1#*=}"; shift ;;
       *) echo "Unknown option: $1 (try: claude-peon install --lang <code>)" >&2; exit 1 ;;
     esac
@@ -97,6 +125,8 @@ cmd_install() {
   if ! lang_supported "$lang"; then
     echo "Unsupported language '$lang'. Available: $SUPPORTED_LANGS" >&2; exit 1
   fi
+
+  warn_legacy   # flag pre-multilang config/sound leftovers before we change anything
 
   step "Installing into $DEST"
   mkdir -p "$DEST"
@@ -160,17 +190,23 @@ cmd_install() {
 
 cmd_lang() {
   require_macos
-  local lang="${1:-}"
-  local avail; avail="$([[ -d "$DEST/lang" ]] && (cd "$DEST/lang" && echo *) || echo "$SUPPORTED_LANGS")"
+  local lang="${1:-}" d avail=""
+  if [[ -d "$DEST/lang" ]]; then
+    for d in "$DEST/lang"/*/; do [[ -d "$d" ]] && avail+="$(basename "$d") "; done
+  fi
+  [[ -n "$avail" ]] || avail="$SUPPORTED_LANGS"
   if [[ -z "$lang" ]]; then
     local cur="(unknown)"; [[ -f "$DEST/lang.current" ]] && cur="$(cat "$DEST/lang.current")"
     echo "Current language : $cur"
-    echo "Available        : $avail"
+    echo "Available        : ${avail% }"
     echo "Switch with      : claude-peon lang <code>"
     return 0
   fi
+  if ! valid_lang_name "$lang"; then
+    echo "Invalid language name '$lang'." >&2; exit 1
+  fi
   if [[ ! -d "$DEST/lang/$lang" ]]; then
-    echo "Language '$lang' not installed. Available: $avail" >&2; exit 1
+    echo "Language '$lang' not installed. Available: ${avail% }" >&2; exit 1
   fi
   activate_lang "$lang"
   ok "Switched to '$lang' — new phrases and voice are live."

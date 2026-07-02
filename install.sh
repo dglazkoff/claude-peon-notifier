@@ -28,5 +28,5 @@ else
 fi
 
 chmod +x "$ROOT/bin/claude-peon" "$ROOT/share/"*.sh 2>/dev/null || true
-# Not `exec`: we must return here so the EXIT trap can clean up the temp clone.
-"$ROOT/bin/claude-peon" install
+# Forward our args (e.g. --lang ru) and don't `exec`, so the EXIT trap can clean up.
+"$ROOT/bin/claude-peon" install "$@"
