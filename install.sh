@@ -12,7 +12,10 @@ REPO_URL="https://github.com/dglazkoff/claude-peon-notifier.git"
 SELF="${BASH_SOURCE[0]:-}"
 
 TMP=""
-cleanup() { [[ -n "$TMP" ]] && rm -rf "$TMP"; }
+# Use the || idiom, not `[[ -n "$TMP" ]] && ...`: when TMP is empty the && form
+# returns 1, and as the EXIT trap's last command that would make a successful
+# install exit non-zero. `[[ -z ]] || ...` always returns 0 here.
+cleanup() { [[ -z "$TMP" ]] || rm -rf "$TMP"; }
 trap cleanup EXIT
 
 if [[ -n "$SELF" && -f "$(dirname "$SELF")/bin/claude-peon" ]]; then
